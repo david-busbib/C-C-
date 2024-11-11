@@ -1,0 +1,361 @@
+#include "markov_chain.h"
+#include <string.h>
+#define MAX_NUMBER 1000 //TODO check what's the max_number
+
+int get_random_number (int max_number)
+{
+  return rand () % max_number;
+}
+
+MarkovNode *helper_get_first (Node *node, int max)
+{
+  int num = get_random_number (max);
+  for (int i = 0; i < num; i++)
+    {
+      node = node->next;
+    }
+  return node->data;
+}
+
+char *alloc_copy (const char *src)
+{
+  /**memory allocation for string
+   * return the pointer to
+   */
+  char *dest = malloc (strlen (src) + 1);
+  if (!dest)
+    {
+      free (dest);
+      return NULL;
+    }
+  memcpy (dest, src, strlen (src) + 1);
+  return dest;
+}
+
+/**
+ * Get one random state from the given markov_chain's database.
+ * @param markov_chain
+ * @return
+ */
+MarkovNode *get_first_random_node (MarkovChain *markov_chain)
+{
+  MarkovNode *first = helper_get_first (markov_chain->database->first, markov_chain->database->size);
+  char *first_data = first->data;
+  int len = strlen (first_data);
+  while (first_data[len - 1] == '.')
+    {
+      first = helper_get_first (markov_chain->database->first,
+                                markov_chain->database->size);
+      first_data = first->data;
+    }
+  return first;
+}
+
+/**
+ * Choose randomly the next state, depend on it's occurrence frequency.
+ * @param state_struct_ptr MarkovNode to choose from
+ * @return MarkovNode of the chosen state
+ */
+MarkovNode *get_next_random_node (MarkovNode *state_struct_ptr)
+{
+  NextNodeCounter *counter_list = state_struct_ptr->counter_list;
+  int size = state_struct_ptr->size_counter_list;
+  for(int i=0; i<state_struct_ptr->size_counter_list;++i){
+    if(counter_list[i].frequency!=1){
+      size += counter_list[i].frequency-1;
+    }
+  }
+  int ind = get_random_number (size);
+  NextNodeCounter *next_node = counter_list;
+  int i = 0;
+  int j = 1;
+  while (i < ind)
+    {
+      i += 1;
+      if(i > next_node->frequency){
+          next_node = &counter_list[j]; //TODO maybe we need to add sizeof
+          ++j;
+        }
+      // (NextNodeCounter*)
+    }
+  return next_node->markov_node;
+}
+
+/**
+ * Receive markov_chain, generate and print random sentence out of it. The
+ * sentence most have at least 2 words in it.
+ * @param markov_chain
+ * @param first_node markov_node to start with,
+ *                   if NULL- choose a random markov_node
+ * @param  max_length maximum length of chain to generate
+ */
+void generate_random_sequence (MarkovChain *markov_chain, MarkovNode *
+first_node, int max_length)
+{
+  //TODO check if we change the first_node in if we really change it
+  if (!first_node)
+    {
+      first_node = get_first_random_node (markov_chain);
+    }
+  printf ("%s ", first_node->data);
+  int i = 0;
+  MarkovNode *next = NULL;
+  MarkovNode *first = first_node;
+//  next = get_next_random_node (first);
+  while (i < max_length-1)
+    {
+      next = get_next_random_node (first);
+      if (next->data[strlen (next->data) - 1] != '.')
+        {
+          i++;
+          printf ("%s ", next->data);
+        }
+      else
+        {
+          printf ("%s\n", next->data);
+          break;
+        }
+      first = next;
+    }
+}
+
+bool in_link (LinkedList *database, MarkovNode *to_search)
+{
+  Node *first = database->first;
+  for (int i = 0; i < database->size; ++i)
+    {
+      if (first->data == to_search)
+        {
+          return true;
+        }
+      first = first->next;
+    }
+  return false;
+}
+
+void free_node (Node *node, LinkedList *database)
+{
+  free (node->data->data);
+  for (int i = 0; i < node->data->size_counter_list; ++i)
+    {
+//      if(!in_link(database, (node->data->counter_list+i*sizeof(NextNodeCounter))->markov_node)){
+//          free((node->data->counter_list+i*sizeof(NextNodeCounter))->markov_node);
+//      }
+//        if(in_link(database, node->data->counter_list[i].markov_node)){
+      free (node->data->counter_list + i * sizeof (NextNodeCounter));
+
+    }
+}
+
+/**
+ * Free markov_chain and all of it's content from memory
+ * @param markov_chain markov_chain to free
+ */
+void free_markov_chain (MarkovChain **ptr_chain)
+{
+  LinkedList *database = (*ptr_chain)->database;
+  int i = 0;
+  Node *node = database->first;
+  while (i < database->size)
+    {
+      Node *tmp = node->next;
+      free_node (node, database);
+      free (node->data);
+      free (node);
+      node = tmp;
+      i+=1;
+//      database->size--;
+    }
+}
+
+int in_counter_lst (MarkovNode *first_node, MarkovNode *second_node)
+{
+  int res = 0;
+  for (int j = 0; j < first_node->size_counter_list; ++j)
+    {
+      if (first_node->counter_list[j].markov_node == second_node)
+        {
+          first_node->counter_list[j].frequency += 1;
+          res = 1;
+        }
+    }
+  return res;
+}
+
+/**
+ * Add the second markov_node to the counter list of the first markov_node.
+ * If already in list, update it's counter value.
+ * @param first_node
+ * @param second_node
+ * @return success/failure: true if the process was successful, false if in
+ * case of allocation error.
+ */
+bool add_node_to_counter_list (MarkovNode *first_node, MarkovNode *second_node)
+{
+//  NextNodeCounter *counter_list = first_node->counter_list;
+  int in = in_counter_lst (first_node, second_node);
+  if (!in)
+    {
+      NextNodeCounter *ptr = realloc (first_node->counter_list,
+                                      (first_node->size_counter_list + 1)
+                                      * sizeof (NextNodeCounter));
+      if (!ptr)
+        {
+          fprintf (stderr, ALLOCATION_ERROR_MASSAGE);
+          return false;
+        }
+      else
+        {
+          first_node->counter_list = ptr;
+//          free (ptr);
+        }
+      first_node->size_counter_list++;
+      if (first_node->counter_list->markov_node)
+        {
+          first_node->counter_list[first_node->size_counter_list
+                                   - 1].frequency = 1;
+          first_node->counter_list[first_node->size_counter_list
+                                   - 1].markov_node = second_node;
+        }
+      else
+        {
+          first_node->counter_list->markov_node = second_node;
+          first_node->counter_list->frequency = 1;
+        }
+    }
+  return true;
+}
+
+/**
+* Check if data_ptr is in database. If so, return the markov_node wrapping it in
+ * the markov_chain, otherwise return NULL.
+ * @param markov_chain the chain to look in its database
+ * @param data_ptr the state to look for
+ * @return Pointer to the Node wrapping given state, NULL if state not in
+ * database.
+ */
+Node *get_node_from_database (MarkovChain *markov_chain, char *data_ptr)
+{
+  LinkedList *database = markov_chain->database;
+  Node *node = database->first;
+  for (int i = 0; i < database->size; ++i)
+    {
+      if (!strcmp (node->data->data, data_ptr))
+        {
+          return node;
+        }
+      node = node->next;
+    }
+  return NULL;
+}
+
+Node *go_last (Node *node)
+{
+  if (!node)
+    {
+      return NULL;
+    }
+  Node *tmp = node;
+  while (node)
+    {
+      tmp = node;
+      node = node->next;
+    }
+  return tmp;
+}
+
+/**
+* If data_ptr in markov_chain, return it's markov_node. Otherwise, create new
+ * markov_node, add to end of markov_chain's database and return it.
+ * @param markov_chain the chain to look in its database
+ * @param data_ptr the state to look for
+ * @return markov_node wrapping given data_ptr in given chain's database,
+ * returns NULL in case of memory allocation failure.
+ */
+Node *add_to_database (MarkovChain *markov_chain, char *data_ptr)
+{
+//  char *data_cpy = alloc_copy (data_ptr);
+//  if (!data_cpy)
+//    {
+//      fprintf (stderr, ALLOCATION_ERROR_MASSAGE);
+//      return NULL;
+//    }
+  Node *node = get_node_from_database (markov_chain, data_ptr);
+//  MarkovNode *ptr = calloc (1, sizeof (MarkovNode));
+//  if (!ptr)
+//    {
+//      free(data_cpy);
+//      fprintf (stderr, ALLOCATION_ERROR_MASSAGE);
+//      return NULL;
+//    }
+//  else if(!node)
+//    {
+//      ptr->data = data_cpy;
+//      ptr->counter_list = NULL;
+//      ptr->size_counter_list = 0;
+//    }
+  if (!node)
+    {
+      char *data_cpy = alloc_copy (data_ptr);
+      if (!data_cpy)
+        {
+          fprintf (stderr, ALLOCATION_ERROR_MASSAGE);
+          return NULL;
+        }
+      MarkovNode *ptr = calloc (1, sizeof (MarkovNode));
+      if (!ptr)
+        {
+          free (data_cpy);
+          fprintf (stderr, ALLOCATION_ERROR_MASSAGE);
+          return NULL;
+        }
+      ptr->data = data_cpy;
+      ptr->counter_list = NULL;
+      ptr->size_counter_list = 0;
+      Node *new = calloc (1, sizeof (Node));
+      if (!new)
+        {
+          free (data_cpy);
+          free (ptr);
+          fprintf (stderr, ALLOCATION_ERROR_MASSAGE);
+          return NULL;
+        }
+      new->data = ptr;
+      new->next = NULL;
+      Node *last = go_last (markov_chain->database->first);
+      if (last)
+        {
+          if (strcmp (new->data->data, last->data->data) != 0)
+            {
+              add_node_to_counter_list (markov_chain->database->last->data, ptr);
+              if (!in_link (markov_chain->database, ptr))
+                {
+                  last->next = new;
+                  markov_chain->database->last = new;
+                }
+              else
+                {
+                  markov_chain->database->size--;
+                }
+            }
+//          else{
+//            add_node_to_counter_list (markov_chain->database->last->data, markov_chain->database->last->data);
+//            free(ptr);
+//            free(new);
+//          }
+        }
+      else
+        {
+          markov_chain->database->first = new;
+          markov_chain->database->last = new;
+        }
+      markov_chain->database->size++;
+      return get_node_from_database (markov_chain, data_ptr);
+    }
+  else
+    {
+      add_node_to_counter_list (markov_chain->database->last->data, node->data);
+      markov_chain->database->last = node;
+      return node;
+    }
+}
