@@ -1,2 +1,3 @@
-# C-C-
-some of my C and C++ project 
+# C-C++
+
+some of my  C and C++ project 
