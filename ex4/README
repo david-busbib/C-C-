@@ -1,0 +1,40 @@
+# Multilayer Perceptron Neural Network Library
+
+This is a lightweight C++ library designed to create and train a multilayer
+ perceptron (MLP) neural network. The library supports customizable activation
+  functions and dense layers, making it suitable for a variety of machine
+   learning tasks.
+
+## Features
+- **Modular Design**: Easily extendable with new activation functions and layers.
+- **Efficiency**: Optimized for performance and small to medium-sized datasets.
+- **Scalability**: Supports adding multiple layers and nodes to build complex models.
+
+## Getting Started
+
+### Prerequisites
+- C++ compiler (C++11 or newer)
+- CMake (for building the project)
+
+### Installation
+1. Clone the repository:
+    ```bash
+    git clone https://github.com/yourusername/mlp_network.git
+    cd mlp_network
+    ```
+
+2. Build the project using CMake:
+    ```bash
+    mkdir build
+    cd build
+    cmake ..
+    make
+    ```
+
+### Usage
+Include the necessary headers in your project:
+```cpp
+#include "Matrix.h"
+#include "Activation.h"
+#include "Dense.h"
+#include "MlpNetwork.h"
